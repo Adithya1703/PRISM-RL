@@ -46,7 +46,18 @@ grid on;
 
 saveas(gcf, 'tire_comp_sus_def.png');
 
+% Open file
+fid = fopen('acceleration_data.csv', 'w');
 
+% Write headers
+fprintf(fid, 'Time (s),Sprung Accel (m/s^2),Unsprung Accel (m/s^2), Spring Force (N), Damper Force (N), Tire force(N)\n');
+
+% Write data row by row
+for i = 1:length(out.tout)
+    fprintf(fid, '%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n', out.tout(i), out.y_sddot(i), out.y_uddot(i), out.Fs(i), out.Fd(i), out.Ft(i));
+end
+
+fclose(fid);
 %* kkk = 16000;   % ks
 % ccc = 1000;    % cs
 % msm_sms = 290; % ms
