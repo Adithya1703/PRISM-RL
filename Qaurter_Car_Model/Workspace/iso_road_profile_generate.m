@@ -1,0 +1,1 @@
+[road_profile_time, road_profile_height] = generate_iso8608_profile('A', 2, 10, 100);

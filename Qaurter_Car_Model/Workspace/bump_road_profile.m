@@ -48,4 +48,4 @@ grid on;
 yticks(-2:1:8)
 ylim([-2 8])
 
-saveas(gcf, 'road_profile.png');
+% saveas(gcf, 'road_profile.png');
