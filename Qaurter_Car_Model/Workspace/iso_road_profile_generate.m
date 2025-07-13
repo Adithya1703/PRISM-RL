@@ -1,1 +1,1 @@
-[road_profile_time, road_profile_height] = generate_iso8608_profile('D', 2, 10, 100);
+[road_profile_time, road_profile_height] = generate_iso8608_profile('B', 2, 10, 100);
