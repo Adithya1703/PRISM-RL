@@ -17,21 +17,39 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
 
 
         % Road profile and suspension data
-        RadarData          % 1xN vector : : Road preview from radar
+        RadarData          % 1xN vector : Road preview from radar
         SuspensionData     % NxS matrix [zs, zus, vs, vus, acc]
 
         % Action parameters
         k = 20000;                % Suspension spring constant [N/m] (action parameter)
         c = 2500;                 % Suspension damping coefficient [Ns/m] (action parameter)
 
-        RewardWeights = [1.0, 0.8, 0.3, 0.1, 0.05]; % [w1, w2, w3, w4, w5]
+        RewardWeights  % [w1, w2, w3....w7]
+        CurrentEpisode = 0 % keep track of episode number
 
         UnsprungMass = 40; % Unsprung mass [kg] (constant)
         PreviousAction = [0; 0]; % stores k & c from previous step for actuator effort penalty
+
+        % Reward visuaization
+        EpisodeRewardHistory;
+        CurrentEpisodeReward;
+        maxTime        = 10;            % seconds per episode
+
+        % Define thresholds
+        Scale_a = 15;                   % m/s²    expected max sprung accel
+        Scale_j = 1500;                 % m/s^3   expected jerk range (tune)
+        Scale_F = 8000;                 % N       typical dynamic range
+        Scale_dx = 0.10;                % m       10 cm suspension travel
+        Scale_dv = 1.0;                 % m/s     rel vel scale
+
+        % Optional actuator shaping
+        Scale_dk = 10000;               % N/m     spring constant change scale
+        Scale_dc = 1000;                % Ns/m     damping coefficient change scale
     end
 
     %% Observation and Action Info
     properties(Access = protected)
+
         % Current observation (state)
         State = zeros(5,1);
     end
@@ -39,10 +57,6 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
     methods
         function this = PredictiveSuspensionEnv(radar, suspension, rewardWeights)
             % Constructor: Initializes environment with radar and suspension data
-
-            if nargin > 2
-                this.RewardWeights = rewardWeights;
-            end
 
             % Validate input dimensions
             if numel(radar) ~= size(suspension,1)
@@ -64,6 +78,10 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
             % Call the superclass constructor
             this = this@rl.env.MATLABEnvironment(ObservationInfo, ActionInfo);
 
+            if nargin > 2
+                this.RewardWeights = rewardWeights;
+            end
+
             % Assign radar and suspension input data to properties
             this.RadarData = radar;
             this.SuspensionData = suspension;
@@ -79,13 +97,30 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
             this.RewardWeights = weights;
         end
 
-        function [obs, reward, isDOne, loggedSignals] = step(this, action)
+        function done = isDone(this)
+            % Unpack observation if needed
+            idx = this.CurrentStep;
+            as = this.SuspensionData(idx, 6);  % example, index based on your observation structure
+            Ft   = this.SuspensionData(idx, 5);  % adjust index appropriately
+            time         = this.CurrentStep * this.Ts;
+
+            % Conditions to terminate
+            done = abs(as) > this.Scale_a || ...
+                   abs(Ft) > this.Scale_F || ...
+                   time >= this.maxTime || ...
+                   this.CurrentStep >= this.MaxSteps;
+        end
+
+        function [obs, reward, isDone, loggedSignals] = step(this, action)
             % STEP function: called at each time step by RL agent
 
             % Ensure action is within bounds
             % Note: rlNumericSpec already enforces limits, but we can double-check
             action = min(max(action, this.ActionInfo.LowerLimit), this.ActionInfo.UpperLimit);
 
+            if numel(action) ~= 2
+                error('Action must be a 2-element vector [k, c].');
+            end
 
             % Update suspension parameters from action
             this.k = action(1);
@@ -95,7 +130,7 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
 
             % Check if the current step exceeds the length of data
             if idx > length(this.RadarData) || idx > size(this.SuspensionData,1)
-                isDOne = true;       % End episode if no more data is available
+                isDone = true;       % End episode if no more data is available
                 obs = this.State;    % Return current state
                 reward = 0;          % No reward if episode is done
                 loggedSignals = [];  % No logged signals
@@ -110,14 +145,10 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
             vus = this.SuspensionData(idx, 4);     %unsprung vel
             Ft = this.SuspensionData(idx, 5);      % Tire force
             as = this.SuspensionData(idx, 6);      % sprung acceleration
-
-            % this.State = this.SuspensionData(this.CurrentStep, :);
             
-            % Suspension deflection(spring travel)
-            deflection = zs-zus;
-
-            % Tire force deviation from nominal (optional)
-            Ft_nom = this.UnsprungMass*9.81; % Nominal tire force (mg)
+            
+            deflection = zs-zus; % Suspension deflection(spring travel)
+            defl_vel = vs-vus;   % Suspension deflection velocity
 
             % Jerk(derivative of acceleration)
             if idx>1
@@ -129,9 +160,8 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
 
             % Actuator effort
             if idx>1
-                prevAction = this.PreviousAction;
-                delta_c = action(2) - prevAction(2); % Change in damping coefficient
-                delta_k = action(1) - prevAction(1); % Change in spring constant
+                delta_k = action(1) - this.PreviousAction(1); % Change in spring constant
+                delta_c = action(2) - this.PreviousAction(2); % Change in damping coefficient
             else
                 delta_c = 0; % No previous action for first step
                 delta_k = 0;
@@ -143,29 +173,52 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
 
             % Reward function: Penalize large displacement and velocity (comfort & stability)
             % reward = -abs(zs) - 0.1*abs(vs);
-            %reward = - this.RewardWeights(1) * abs(zs) - this.RewardWeights(2) * abs(vs);
 
+            % Normalized quantities
+            na = as/this.Scale_a;
+            nj = jerk/this.Scale_j;
+            nF = Ft/this.Scale_F;
+            ndx = deflection/this.Scale_dx;
+            ndv = defl_vel/this.Scale_dv;
+            ndk = delta_k/this.Scale_dk;
+            ndc = delta_c/this.Scale_dc;
 
             % Define reward weights
             w = this.RewardWeights;
 
-            % Reward calculation
-            reward = ...
-                -w(1) * (as)^2 ...               % Penalize acceleration
-                -w(2) * (Ft - Ft_nom)^2 ...      % Penalize tire force deviation
-                -w(3) * (deflection)^2 ...       % Penalize suspension travel
-                -w(4) * (jerk)^2 ...              % Penalize jerk
-                -w(5) * (delta_c^2 + delta_k^2); % Penalize actuator effort
+            if numel(w) ~= 7
+                error('RewardWeights must be a 7-element vector');
+            end
+
+            % reward calculation
+            cost = ...
+                w(1) * (na)^2 ...
+                + w(2) * (nj)^2 ...
+                + w(3) * (nF)^2 ...
+                + w(4) * (ndx)^2 ... 
+                + w(5) * (ndv)^2 ...
+                + w(6) * (ndk)^2 ...
+                + w(7) * (ndc)^2;
+
+            reward = -cost; % Negative cost as reward
+
+            this.CurrentEpisodeReward = this.CurrentEpisodeReward + reward; % Accumulate reward for the episode
             
             % Update state vector
             this.State = [zr; zs; zus; vs; vus];   % Update state vector
+            
             
             % Store previous action for next step
             this.PreviousAction = action;
 
 
             % Check if the episode is done
-            isDOne = this.CurrentStep >= this.MaxSteps;
+            isDone = (this.CurrentStep*this.Ts >= this.maxTime) || (this.CurrentStep >= this.MaxSteps) ||(abs(as) > this.Scale_a) || (abs(Ft) > this.Scale_F);
+
+            % Reward accumulation
+            if isDone
+                this.EpisodeRewardHistory(end+1) = this.CurrentEpisodeReward;
+            end
 
             % Advance step
             this.CurrentStep = this.CurrentStep + 1;
@@ -205,11 +258,64 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
             grid on;
         end
 
+        % method to plot reward history
+        function plotRewardCurve(this, window)
+            if nargin < 2
+                window = 5; % moving average window
+            end
+
+            rewards = this.EpisodeRewardHistory;
+            if isempty(rewards)
+                disp('No reward history found.');
+                return;
+            end
+
+            movingAvg = movmean(rewards, window);
+
+            figure;
+            plot(rewards, 'b-', 'DisplayName', 'Raw Reward');
+            hold on;
+            plot(movingAvg, 'r-', 'LineWidth', 2, 'DisplayName', sprintf('Moving Avg (window=%d)', window));
+            xlabel('Episode');
+            ylabel('Total Reward');
+            title('Reward Curve Over Episodes');
+            legend;
+            grid on;
+        end
+
         function reset(this)
             % reset function for environment
-            this.EpisodeLog = repmat(struct('State', [], 'Action', [], 'Reward', []), this.MaxSteps, 1);
-            this.PreviousAction = [this.k; this.c];
+
+            % slight randomization of action
+            this.k = 18000+4000*rand; % eg., [18k, 22k] N/m
+            this.c = 2000+1000*rand; % eg,. [2k, 3k] N/m
+            
+            % log previous episode total reward
+            if ~isempty(this.CurrentEpisodeReward)
+                this.EpisodeRewardHistory(end+1) = this.CurrentEpisodeReward; % Reset episode reward history
+            end
+
+            % reset reward and step counter
+            this.CurrentEpisodeReward = 0; % Reset current episode reward
             this.CurrentStep = 1;
+
+            % reset episode log
+            this.EpisodeLog = repmat(struct('State', [], 'Action', [], 'Reward', []), this.MaxSteps, 1);
+
+            % track episode number
+            if isempty(this.CurrentEpisode)
+                this.CurrentEpisode = 1;
+            else
+                this.CurrentEpisode = this.CurrentEpisode+1;
+            end
+
+            % store last applied actions as previous action
+            this.PreviousAction = [this.k; this.c];
+            
+            % data sanity check
+            if isempty(this.RadarData) || isempty(this.SuspensionData)
+                error('Radar and Suspension data must be provided before reset.');
+            end
 
             % Randomize initial state for generalization
             this.State = [ ...
@@ -219,7 +325,7 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
                 this.SuspensionData(1, 3) + 0.01*randn; ... % vs with small noise
                 this.SuspensionData(1, 4) + 0.01*randn];    % vus with small noise
 
-            % Optionally, allow user to specify initial state as an argument
+            fprintf('Episode %d started. Initial state: [%0.3f %0.3f ...]\n', this.CurrentEpisode, this.State(1), this.State(2));
         end
 
         function validLog = getValidEpisodeLog(this)
