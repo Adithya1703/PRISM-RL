@@ -1,0 +1,99 @@
+classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
+    % Predictive Suspension environment for RL
+    
+    %% Properties(Set only once)
+    properties
+        % Simulation time step
+        Ts = 0.01;
+
+        % Current time Index
+        CurrentStep = 1;
+
+        % Total Time Steps( we can change this later too)
+        MaxSteps = 1000;
+
+        % Road profile and suspension data
+        RadarData          % 1xN vector
+        SuspensionData     % NxS matrix [zs, zus, vs, vus, acc]
+
+        % Action parameters
+        k = 20000;
+        c = 2500;
+    end
+
+    %% Observation and Action Info
+    properties(Access = protected)
+        % CUrrent observation (state)
+        State = zeros(5,1);
+    end
+
+    methods
+        function this = PredictiveSuspensionEnv(radar, suspension)
+            % Constructor
+
+            % Define observation (5 state values)
+            ObservationInfo = rlNumericSpec([5 1], ...
+                'LowerLimit', [-2;-Inf;-Inf;-Inf;-Inf], ...
+                'UpperLimit', [2;Inf;Inf;Inf;Inf]);
+            ObservationInfo.Name = 'states';
+
+            % Define action (2 values: k and c)
+            ActionInfo = rlNumericSpec([2 1], ...
+                'LowerLimit', [10000; 500], ...
+                'UpperLimit', [30000; 3500]);
+            ActionInfo.Name = 'actions';
+            
+            % Call the superclass constructor - Initialize parent class
+            this = this@rl.env.MATLABEnvironment(ObservationInfo, ActionInfo);
+
+            % Assign radar and suspension data
+            this.RadarData = radar;
+            this.SuspensionData = suspension;
+
+            this.ObservationInfo = ObservationInfo;
+            this.ActionInfo = ActionInfo;
+        end
+
+        function [obs, reward, isDOne, loggedSignals] = step(this, action)
+            % STEP function: called at each time step by RL agent
+
+            % Update k and c based on action
+            this.k = action(1);
+            this.c = action(2);
+
+            % Update the state based on the current step and action
+            idx = this.CurrentStep;
+
+            % Get current data
+            zr = this.RadarData(idx); % radar preview
+            zs = this.SuspensionData(idx, 1); % Sprung pos
+            zus = this.SuspensionData(idx, 2); % unsprung pos
+            vs = this.SuspensionData(idx, 3); % sprung vel
+            vus = this.SuspensionData(idx, 4); %unsprung vel
+
+            this.State = [zr; zs; zus; vs; vus];
+            % this.State = this.SuspensionData(this.CurrentStep, :)';  % Update state from suspension data
+            
+            % Calculate reward based on the updated state
+            % dummy reward we can use -> reward = -abs(zs);
+            reward = -norm(this.State(1:2));  % Example reward function
+            
+            % Check if the episode is done
+            % isDOne = this.CurrentStep >= this.MaxSteps;
+            isDOne = (idx >= this.MaxSteps);
+
+            % Advance step
+            this.CurrentStep = this.CurrentStep + 1;
+            
+            % Prepare logged signals (if any)
+            % loggedSignals = struct('State', this.State, 'Action', action);
+            loggedSignals = [];
+            
+            % Return the observation
+            obs = this.State;
+
+        end
+    end
+end
+
+
