@@ -55,6 +55,10 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
     end
 
     methods
+        function curr = getState(this)
+            curr = this.State;
+        end
+
         function this = PredictiveSuspensionEnv(radar, suspension, rewardWeights)
             % Constructor: Initializes environment with radar and suspension data
 
@@ -128,7 +132,7 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
             zs = this.SuspensionData(idx, 1);      % Sprung pos
             zus = this.SuspensionData(idx, 2);     % unsprung pos
             vs = this.SuspensionData(idx, 3);      % sprung vel
-            vus = this.SuspensionData(idx, 4);     %unsprung vel
+            vus = this.SuspensionData(idx, 4);     % unsprung vel
             Ft = this.SuspensionData(idx, 5);      % Tire force
             as = this.SuspensionData(idx, 6);      % sprung acceleration
             
@@ -275,7 +279,7 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
             grid on;
         end
 
-        function reset(this)
+        function obs = reset(this)
             % reset function for environment
 
             % slight randomization of action
@@ -298,6 +302,7 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
             
             this.CurrentEpisode = this.CurrentEpisode+1;
 
+            % printing average reward per 10 episodes
             if this.CurrentEpisode >= 10 && mod(this.CurrentEpisode, 10) == 0
                 avgReward = mean(this.EpisodeRewardHistory(end-9:end));
                 fprintf('Average Reward (Episodes %d–%d): %.2f\n', ...

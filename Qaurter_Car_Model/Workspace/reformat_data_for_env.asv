@@ -1,1 +1,3 @@
-load("")
+radar = radar_data.RadarRoadElevation_m_;
+Suspension_curr = [out.y_s; out.y_u; out.y_sdot; out.y_udot; out.Ft; out.y_sddot];
+Suspension = Suspension_curr[]

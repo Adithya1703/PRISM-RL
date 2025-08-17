@@ -92,7 +92,7 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
 
         function setRewardWeights(this, weights)
             if numel(weights) ~= 7
-                error('RewardWeights must be a vector of length 5.');
+                error('RewardWeights must be a vector of length 7.');
             end
             this.RewardWeights = weights;
         end
@@ -273,6 +273,10 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
             title('Reward Curve Over Episodes');
             legend;
             grid on;
+        end
+
+        function s = getState(this)
+            s = this.State;
         end
 
         function reset(this)
