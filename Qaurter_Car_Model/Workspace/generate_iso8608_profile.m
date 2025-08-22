@@ -48,12 +48,12 @@ function [t, zr] = generate_iso8608_profile(road_class, v, T, fs)
     save(filename, 't', 'zr');
 
     % Plot
-    figure;
+    fig = figure('Visible', 'off');
     plot(t, zr);
     xlabel('Time [s]'); ylabel('Road Elevation [m]');
     title(['ISO 8608 Class ' road_class ' Road Profile']);
     grid on;
 
-    saveas(gcf, 'road_profile.png');
+    saveas(fig, 'road_profile.png');
 
 end

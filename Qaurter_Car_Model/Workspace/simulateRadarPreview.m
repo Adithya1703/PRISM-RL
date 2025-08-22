@@ -1,4 +1,4 @@
-function zr_future = simulateRadarPreview(road_time, road_height, vehicle_speed, preview_distance)
+function radar = simulateRadarPreview(name, road_time, road_height)
 % Simulate mmWave radar preview of road profile
 % Inputs:
 %   road_time      - time vector [s]
@@ -9,6 +9,9 @@ function zr_future = simulateRadarPreview(road_time, road_height, vehicle_speed,
 %   zr_future      - radar previewed profile [same size as road_time]
 
     % --- Calculate preview time shift
+    vehicle_speed = 2;
+    name = upper(name);
+    preview_distance = 1;
     t_shift = preview_distance / vehicle_speed;
 
     % --- Shift road profile in time
@@ -21,4 +24,20 @@ function zr_future = simulateRadarPreview(road_time, road_height, vehicle_speed,
     % Add simulated radar noise
     radar_noise = 0.005 * randn(size(zr_future));  % 5 mm noise
     zr_future = zr_future + radar_noise;
+
+    fig = figure('Visible', 'off');
+    plot(road_time, road_height, 'b', 'DisplayName', 'True road');
+    hold on
+    plot(road_time, zr_future, 'r--', 'DisplayName', 'Radar Preview');
+    xlabel('Time [s]');
+    ylabel('Road Elevation [m]');
+    legend;
+    title('Simulated Radar Road Preview');
+    grid on;
+    saveas(fig, 'radar_vs_road.png');
+
+    time = road_time(:);
+    radar = zr_future(:);
+    filename = "Radar_Class" + name + "_Profile.mat";
+    save(filename, 'time', 'radar');
 end

@@ -1,5 +1,5 @@
 % Plot the signals
-figure;
+fig = figure('Visible', 'off');
 plot(out.tout, out.y_s, 'b'); hold on;
 plot(out.tout, out.y_u, 'r');
 plot(out.tout, out.y_road, 'k--');
@@ -10,31 +10,31 @@ title('Suspension System Response');
 xlabel('Time (s)');
 ylabel('Displacement (m)');
 
-saveas(gcf, 'displacement.png');
+saveas(fig, 'displacement.png');
 
 % Plot accelerations
-figure;
+fig = figure('Visible', 'off');
 plot(out.tout, out.y_sddot, 'b', out.tout, out.y_uddot, 'r');
 xlabel('Time (s)');
 ylabel('Acceleration (m/s^2)');
 legend('Sprung Mass (z̈)', 'Unsprung Mass (ÿ)');
 title('Accelerations of Sprung and Unsprung Mass');
 
-saveas(gcf, 'accel.png');
+saveas(fig, 'accel.png');
 
 % Plot suspension and tire forces
-figure;
+fig = figure('Visible', 'off');
 plot(out.tout, out.Fs, 'b', out.tout, out.Fd, 'g', out.tout, out.Ft, 'r');
 xlabel('Time (s)');
 ylabel('Force (N)');
 legend('Suspension Spring Force', 'Damper Force', 'Tire Force');
 title('Force Dynamics in Suspension System');
 
-saveas(gcf, 'Forces.png');
+saveas(fig, 'Forces.png');
 
 
 % Plot Suspension Deflection and Tire Compression
-figure;
+fig = figure('Visible', 'off');
 plot(out.susp_def.Time, out.susp_def.Data);
 hold on;
 plot(out.tire_comp.Time, out.tire_comp.Data);
@@ -43,8 +43,8 @@ xlabel('Time (s)');
 ylabel('Displacement (m)');
 title('Suspension and Tire Dynamics');
 grid on;
+saveas(fig, 'tire_comp_sus_def.png');
 
-saveas(gcf, 'tire_comp_sus_def.png');
 
 % Open file
 fid = fopen('acceleration_data.csv', 'w');
