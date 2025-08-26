@@ -1,338 +1,410 @@
 classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
-    % Predictive Suspension environment for RL
-    
-    %% Properties(Set only once)
+    % PredictiveSuspensionEnv - Refactored
+    % See comments in code for important changes.
+
     properties
-        % Simulation time step
+        % Timing & limits
         Ts = 0.01;
+        MaxSteps = 1600;
+        maxTime = 10;
 
-        % Current time Index
+        % Episode bookkeeping
         CurrentStep = 1;
-
-        % Maximum Time Steps per episode( we can change this later too)
-        MaxSteps = 1000;
-
-        % Add in properties section
-        EpisodeLog = []; % Will store struct array of state/action/reward per step
-
-
-        % Road profile and suspension data
-        RadarData          % 1xN vector : Road preview from radar
-        SuspensionData     % NxS matrix [zs, zus, vs, vus, acc]
-
-        % Action parameters
-        k = 20000;                % Suspension spring constant [N/m] (action parameter)
-        c = 2500;                 % Suspension damping coefficient [Ns/m] (action parameter)
-
-        RewardWeights  % [w1, w2, w3....w7]
-        CurrentEpisode = 0 % keep track of episode number
-
-        UnsprungMass = 40; % Unsprung mass [kg] (constant)
-        PreviousAction = [0; 0]; % stores k & c from previous step for actuator effort penalty
-
-        % Reward visuaization
+        StartIdx = 1;
+        CurrentEpisode = 0;
+        EpisodeLog = [];           % struct array preallocated at reset
         EpisodeRewardHistory = [];
         CurrentEpisodeReward = 0;
-        maxTime        = 10;            % seconds per episode
 
-        % Define thresholds
-        Scale_a = 15;                   % m/s²    expected max sprung accel
-        Scale_j = 1500;                 % m/s^3   expected jerk range (tune)
-        Scale_F = 8000;                 % N       typical dynamic range
-        Scale_dx = 0.10;                % m       10 cm suspension travel
-        Scale_dv = 1.0;                 % m/s     rel vel scale
+        % Optional precomputed data
+        RadarData = [];
+        SuspensionData = [];
+        PrecomputedSuspension = [];
 
-        % Optional actuator shaping
-        Scale_dk = 10000;               % N/m     spring constant change scale
-        Scale_dc = 1000;                % Ns/m     damping coefficient change scale
+        % Action/state
+        k = 30000;
+        c = 2500;
+        PreviousAction = [0;0];
+
+        % Simulink scalar parameters (ensure exist in base)
+        msm_sms = 300;
+        mum_umu = 47;
+        kt = 200000;
+        ct = 300;
+
+        % Optional actual k/c sequences (prediction-error term)
+        actualK = [];
+        actualC = [];
+
+        % Reward weighting
+        RewardWeights = [0.40, 0.15, 0.15, 0.08, 0.12, 0.03, 0.02];
+
+        % Scaling / normalization
+        Scale_a = 15;
+        Scale_j = 1500;
+        Scale_F = 8000;
+        Scale_dx = 0.10;
+        Scale_dv = 1.0;
+        Scale_dk = 10000;
+        Scale_dc = 1000;
+        scaleR = 10;    % MUST be > 0; createEnvironment will try to set sensibly
+
+        % Simulink names (adapt to your model)
+        ModelName = 'new_model_Qaurter_Car';    % change to your model name
+        KVarName = 'Kvar';
+        CVarName = 'Cvar';
+        RoadTimeVar = 'road_profile_time';
+        RoadHeightVar = 'road_profile_height';
+
+        % Road generation defaults (used by reset())
+        RoadClasses = {'A','B','C','D'};
+        RoadSpeed = 2;
+        RoadDuration = 10;
+        RoadFs = 100;
+
+        % Expected logsout names
+        LoggedSignalNames = {'zs','zus','vs','vus','Ft','as'};
     end
 
-    %% Observation and Action Info
-    properties(Access = protected)
-
-        % Current observation (state)
-        State = zeros(5,1);
+    properties (Access = protected)
+        State = zeros(7,1);   % [ zr; zs; zus; vs; vus; Ft; as ] normalized except zr
+        RadarPreview = [];
+        RoadTime = [];
+        RoadHeight = [];
+        SimTime = 0;          % monotonic stop time used to advance sim
     end
 
     methods
-        function this = PredictiveSuspensionEnv(radar, suspension, rewardWeights)
-            % Constructor: Initializes environment with radar and suspension data
+        %% Constructor
+        function this = PredictiveSuspensionEnv(varargin)
+            obsInfo = rlNumericSpec([7 1], 'LowerLimit', -inf*ones(7,1), 'UpperLimit', inf*ones(7,1));
+            obsInfo.Name = 'states';
+            actInfo = rlNumericSpec([2 1], 'LowerLimit', [10000;500], 'UpperLimit', [30000;3500]);
+            actInfo.Name = 'actions';
+            this = this@rl.env.MATLABEnvironment(obsInfo, actInfo);
 
-            % Validate input dimensions
-            if numel(radar) ~= size(suspension,1)
-                error('Radar and Suspension data length mismatch. Radar must be 1xN, Suspension must be NxS.');
+            % Optionally accept precomputed datasets and reward weights
+            if nargin >= 1 && ~isempty(varargin{1}), this.RadarData = varargin{1}(:); end
+            if nargin >= 2 && ~isempty(varargin{2}), this.SuspensionData = varargin{2}; end
+            if nargin >= 3 && ~isempty(varargin{3})
+                if numel(varargin{3}) ~= 7, error('RewardWeights must be length 7'); end
+                this.RewardWeights = varargin{3}(:).';
             end
 
-            % Define observation (5 state values): [zr, zs, zus, vs, vus]
-            ObservationInfo = rlNumericSpec([5 1], ...
-                'LowerLimit', [-2;-Inf;-Inf;-Inf;-Inf], ...
-                'UpperLimit', [2;Inf;Inf;Inf;Inf]);
-            ObservationInfo.Name = 'states';
-
-            % Define action (2 values: k and c)
-            ActionInfo = rlNumericSpec([2 1], ...
-                'LowerLimit', [10000; 500], ...
-                'UpperLimit', [30000; 3500]);
-            ActionInfo.Name = 'actions';
-            
-            % Call the superclass constructor
-            this = this@rl.env.MATLABEnvironment(ObservationInfo, ActionInfo);
-
-            if nargin > 2
-                this.RewardWeights = rewardWeights;
+            % Ensure scalar parameters exist in base workspace BEFORE model load
+            try
+                this.ensureWorkspaceParameters();
+            catch
+                warning('ensureWorkspaceParameters failed during construction (non-fatal).');
             end
 
-            % Assign radar and suspension input data to properties
-            this.RadarData = radar;
-            this.SuspensionData = suspension;
-
-            % this.ObservationInfo = ObservationInfo;  % to access outside the constructor
-            % this.ActionInfo = ActionInfo;            % to access outside the constructor
-        end
-
-        function setRewardWeights(this, weights)
-            if numel(weights) ~= 7
-                error('RewardWeights must be a vector of length 7.');
-            end
-            this.RewardWeights = weights;
-        end
-
-        function [obs, reward, isDone, loggedSignals] = step(this, action)
-            % STEP function: called at each time step by RL agent
-
-            % Ensure action is within bounds
-            % Note: rlNumericSpec already enforces limits, but we can double-check
-            action = min(max(action, this.ActionInfo.LowerLimit), this.ActionInfo.UpperLimit);
-
-            if numel(action) ~= 2
-                error('Action must be a 2-element vector [k, c].');
-            end
-
-            % Update suspension parameters from action
-            this.k = action(1);
-            this.c = action(2);
-
-            idx = this.CurrentStep; % Current data index
-
-            % Check if the current step exceeds the length of data
-            if idx > length(this.RadarData) || idx > size(this.SuspensionData,1)
-                isDone = true;       % End episode if no more data is available
-                obs = this.State;    % Return current state
-                reward = 0;          % No reward if episode is done
-                loggedSignals = [];  % No logged signals
-                return;
-            end
-
-            % Get current data
-            zr = this.RadarData(idx);              % radar preview
-            zs = this.SuspensionData(idx, 1);      % Sprung pos
-            zus = this.SuspensionData(idx, 2);     % unsprung pos
-            vs = this.SuspensionData(idx, 3);      % sprung vel
-            vus = this.SuspensionData(idx, 4);     % unsprung vel
-            Ft = this.SuspensionData(idx, 5);      % Tire force
-            as = this.SuspensionData(idx, 6);      % sprung acceleration
-            
-            
-            deflection = zs-zus; % Suspension deflection(spring travel)
-            defl_vel = vs-vus;   % Suspension deflection velocity
-
-            % Jerk(derivative of acceleration)
-            if idx>1
-                as_prev = this.SuspensionData(idx-1, 6); % Previous acceleration
-                jerk = (as - as_prev) / this.Ts; % Jerk calculation
-            else
-                jerk = 0; % No previous data for first step
-            end
-
-            % Actuator effort
-            if idx>1
-                delta_k = action(1) - this.PreviousAction(1); % Change in spring constant
-                delta_c = action(2) - this.PreviousAction(2); % Change in damping coefficient
-            else
-                delta_c = 0; % No previous action for first step
-                delta_k = 0;
-            end
-
-            % Calculate reward based on the updated state
-            % dummy reward we can use -> reward = -abs(zs);
-            % reward = -norm(this.State(1:2));  % Example reward function
-
-            % Reward function: Penalize large displacement and velocity (comfort & stability)
-            % reward = -abs(zs) - 0.1*abs(vs);
-
-            % Normalized quantities
-            na = as/this.Scale_a;
-            nj = jerk/this.Scale_j;
-            nF = Ft/this.Scale_F;
-            ndx = deflection/this.Scale_dx;
-            ndv = defl_vel/this.Scale_dv;
-            ndk = delta_k/this.Scale_dk;
-            ndc = delta_c/this.Scale_dc;
-
-            % Define reward weights
-            w = this.RewardWeights;
-
-            if numel(w) ~= 7
-                error('RewardWeights must be a 7-element vector');
-            end
-
-            % reward calculation
-            cost = ...
-                w(1) * (na)^2 ...
-                + w(2) * (nj)^2 ...
-                + w(3) * (nF)^2 ...
-                + w(4) * (ndx)^2 ... 
-                + w(5) * (ndv)^2 ...
-                + w(6) * (ndk)^2 ...
-                + w(7) * (ndc)^2;
-
-            reward = max(-1000, min(0, -cost)); % Negative cost as reward
-
-            this.CurrentEpisodeReward = this.CurrentEpisodeReward + reward; % Accumulate reward for the episode
-            
-            % Update state vector
-            this.State = [zr; zs; zus; vs; vus];   % Update state vector
-            
-            
-            % Store previous action for next step
-            this.PreviousAction = action;
-
-
-            % Check if the episode is done
-            isDone = (this.CurrentStep*this.Ts >= this.maxTime) || (this.CurrentStep >= this.MaxSteps) ||(abs(as) > this.Scale_a) || (abs(Ft) > this.Scale_F);
-
-            % Reward accumulation
-            if isDone
-                this.EpisodeRewardHistory(end+1) = this.CurrentEpisodeReward;
-            end
-
-            % Advance step
-            this.CurrentStep = this.CurrentStep + 1;
-            
-            % Prepare logged signals (if any)
-            loggedSignals = struct('State', this.State, 'Action', action);
-            % loggedSignals = [];
-
-            % Append to episode log
-            % Store the current state, action, and reward in the episode log
-            this.EpisodeLog(idx) = struct('State', this.State, 'Action', action, 'Reward', reward);
-
-            % Return the observation
-            obs = this.State;
-
-        end
-
-        function [kBounds, cBounds] = getActionBounds(this)
-            kBounds = [this.ActionInfo.LowerLimit(1), this.ActionInfo.UpperLimit(1)];
-            cBounds = [this.ActionInfo.LowerLimit(2), this.ActionInfo.UpperLimit(2)];
-        end
-
-        % method to plot episode trajectory
-        function plotEpisode(this)
-            log = this.getValidEpisodeLog();
-            zs_vals = arrayfun(@(x)x.State(2), log);
-            vs_vals = arrayfun(@(x)x.State(4), log);
-
-            figure;
-            plot(zs_vals, 'DisplayName', 'zs (agent)');
-            hold on;
-            plot(vs_vals, 'DisplayName', 'vs (agent)');
-            legend;
-            title('Agent-Controlled Sprung Mass Position and Velocity');
-            xlabel('Time Step');
-            ylabel('Value');
-            grid on;
-        end
-
-        % method to plot reward history
-        function plotRewardCurve(this, window)
-            if nargin < 2
-                window = 5; % moving average window
-            end
-
-            rewards = this.EpisodeRewardHistory;
-            if isempty(rewards)
-                disp('No reward history found.');
-                return;
-            end
-
-            if length(rewards) >= window   % so that movmean doesnt throw error for short periods
-                movingAvg = movmean(rewards, window);
-            else
-                movingAvg = rewards; % fallback
-            end
-
-            % movingAvg = movmean(rewards, window);
-
-            figure;
-            plot(rewards, 'b-', 'DisplayName', 'Raw Reward');
-            hold on;
-            plot(movingAvg, 'r-', 'LineWidth', 2, 'DisplayName', sprintf('Moving Avg (window=%d)', window));
-            xlabel('Episode');
-            ylabel('Total Reward');
-            title('Reward Curve Over Episodes');
-            legend;
-            grid on;
-        end
-
-        function s = getState(this)
-            s = this.State;
-        end
-
-        function reset(this)
-            % reset function for environment
-
-            % slight randomization of action
-            this.k = 18000+4000*rand; % eg., [18k, 22k] N/m
-            this.c = 2000+1000*rand; % eg,. [2k, 3k] N/m
-            
-            % log previous episode total reward
-            if ~isempty(this.CurrentEpisodeReward)
-                this.EpisodeRewardHistory(end+1) = this.CurrentEpisodeReward; % Reset episode reward history
-            end
-
-            % reset reward and step counter
-            this.CurrentEpisodeReward = 0; % Reset current episode reward
-            this.CurrentStep = 1;
-
-            % reset episode log
+            % Preallocate episode log to avoid struct<->double conversion issues
             this.EpisodeLog = repmat(struct('State', [], 'Action', [], 'Reward', []), this.MaxSteps, 1);
 
-            % track episode number
-            
-            this.CurrentEpisode = this.CurrentEpisode+1;
-
-            % printing average reward per 10 episodes
-            if this.CurrentEpisode >= 10 && mod(this.CurrentEpisode, 10) == 0
-                avgReward = mean(this.EpisodeRewardHistory(end-9:end));
-                fprintf('Average Reward (Episodes %d–%d): %.2f\n', ...
-                    this.CurrentEpisode - 9, this.CurrentEpisode, avgReward);
+            % Load Simulink model and enable Fast Restart for speed (non-fatal fall back)
+            try
+                load_system(this.ModelName);
+                set_param(this.ModelName, 'FastRestart', 'on');
+            catch ME
+                warning('Could not load model or enable FastRestart: %s', getReport(ME,'basic'));
             end
+        end
 
-            % store last applied actions as previous action
+        %% Reset - start new episode
+        function initialObs = reset(this)
+            % Log previous total reward into history (single place to push)
+            this.CurrentEpisode = this.CurrentEpisode + 1;
+            if ~isempty(this.CurrentEpisodeReward)
+                this.EpisodeRewardHistory(end+1) = this.CurrentEpisodeReward;
+            end
+            this.CurrentEpisodeReward = 0;
+
+            % Reset log (preallocate)
+            this.EpisodeLog = repmat(struct('State', [], 'Action', [], 'Reward', []), this.MaxSteps, 1);
+
+            % Randomize initial actuator parameters
+            this.k = 18000 + 4000 * rand;
+            this.c = 2000 + 1000 * rand;
             this.PreviousAction = [this.k; this.c];
-            
-            % data sanity check
-            if isempty(this.RadarData) || isempty(this.SuspensionData)
-                error('Radar and Suspension data must be provided before reset.');
+
+            % Generate random road & radar preview for episode
+            rc = this.RoadClasses{ randi(numel(this.RoadClasses)) };
+            [rt, rh] = generate_iso8608_profile(rc, this.RoadSpeed, this.RoadDuration, round(this.RoadFs));
+            this.RoadTime = rt(:);
+            this.RoadHeight = rh(:);
+            this.RadarPreview = simulateRadarPreview(rc, this.RoadTime, this.RoadHeight);
+            this.RadarPreview = this.RadarPreview(:);
+
+            % Assign road arrays to base workspace (your From Workspace blocks expect them)
+            try
+                assignin('base', this.RoadTimeVar, this.RoadTime);
+                assignin('base', this.RoadHeightVar, this.RoadHeight);
+            catch
+                warning('Could not assign road arrays to base workspace (non-fatal).');
             end
 
-            % Randomize initial state for generalization
-            this.State = [ ...
-                this.RadarData(1); ...
-                this.SuspensionData(1, 1) + 0.01*randn; ... % zs with small noise
-                this.SuspensionData(1, 2) + 0.01*randn; ... % zus with small noise
-                this.SuspensionData(1, 3) + 0.01*randn; ... % vs with small noise
-                this.SuspensionData(1, 4) + 0.01*randn];    % vus with small noise
+            % Ensure scalar parameters in base workspace again
+            this.ensureWorkspaceParameters();
 
-            fprintf('Episode %d started. Initial state: [%0.3f %0.3f ...]\n', this.CurrentEpisode, this.State(1), this.State(2));
+            % Initialize sim time & step counters
+            this.SimTime = this.RoadTime(1);
+            this.StartIdx = 1;
+            this.CurrentStep = this.StartIdx;
+
+            % Push initial K/C to base workspace (blocks reading them will see them)
+            try
+                assignin('base', this.KVarName, this.k);
+                assignin('base', this.CVarName, this.c);
+            catch
+                warning('Could not assign Kvar/Cvar to base workspace (non-fatal).');
+            end
+
+            % Run a short sim step to get initial signals (safe fallback to zeros)
+            zs = 0; zus = 0; vs = 0; vus = 0; Ft_val = 0; as_val = 0;
+            try
+                stopT = this.SimTime + this.Ts;
+                simIn = Simulink.SimulationInput(this.ModelName);
+                simIn = setModelParameter(simIn, 'StopTime', num2str(stopT));
+                simIn = setVariable(simIn, this.KVarName, this.k);
+                simIn = setVariable(simIn, this.CVarName, this.c);
+                simIn = setVariable(simIn, this.RoadTimeVar, this.RoadTime);
+                simIn = setVariable(simIn, this.RoadHeightVar, this.RoadHeight);
+                simOut = sim(simIn);
+                this.SimTime = stopT;
+                [zs, zus, vs, vus, Ft_val, as_val] = this.readSimSignals(simOut);
+            catch
+                % ignore: use zeros (precomputed fallback may be used in step)
+            end
+
+            % Build initial normalized state
+            zr0 = this.safeIndex(this.RadarPreview, this.CurrentStep);
+            this.State = [ zr0; zs/this.Scale_dx; zus/this.Scale_dx; vs/this.Scale_dv; vus/this.Scale_dv; Ft_val/this.Scale_F; as_val/this.Scale_a ];
+            initialObs = this.State;
+
+            fprintf('Episode %d start: class=%s, startIdx=%d, SimTime=%0.3f\n', this.CurrentEpisode, rc, this.StartIdx, this.SimTime);
+        end
+
+        %% ensureWorkspaceParameters
+        function ensureWorkspaceParameters(this)
+            % Always set required scalar parameters in base workspace
+            assignin('base','msm_sms', this.msm_sms);
+            assignin('base','mum_umu', this.mum_umu);
+            assignin('base','kt', this.kt);
+            assignin('base','ct', this.ct);
+        end
+
+        %% STEP
+        function [obs, reward, isDone, loggedSignals] = step(this, action)
+            % clip action
+            action = min(max(action, this.ActionInfo.LowerLimit), this.ActionInfo.UpperLimit);
+            if numel(action) ~= 2, error('Action must be 2-element vector [k;c]'); end
+            action = action(:);
+
+            % apply action & write to workspace (for blocks that read globals)
+            this.k = action(1); this.c = action(2);
+            try
+                assignin('base', this.KVarName, this.k);
+                assignin('base', this.CVarName, this.c);
+                this.ensureWorkspaceParameters();
+            catch
+                % ignore non-fatal
+            end
+
+            idx = this.CurrentStep;
+
+            % safety end if no more data
+            if idx > length(this.RadarPreview) || idx > length(this.RoadTime)
+                isDone = true;
+                obs = this.State;
+                reward = 0;
+                loggedSignals = struct();
+                return;
+            end
+
+            % Build SimulationInput for this sub-step (FastRestart helps)
+            zs = 0; zus = 0; vs = 0; vus = 0; Ft_val = 0; as_val = 0;
+            try
+                stopT = this.SimTime + this.Ts;
+                simIn = Simulink.SimulationInput(this.ModelName);
+                simIn = setModelParameter(simIn,'StopTime',num2str(stopT));
+                simIn = setVariable(simIn, this.KVarName, this.k);
+                simIn = setVariable(simIn, this.CVarName, this.c);
+                simIn = setVariable(simIn, this.RoadTimeVar, this.RoadTime);
+                simIn = setVariable(simIn, this.RoadHeightVar, this.RoadHeight);
+                simOut = sim(simIn);
+                this.SimTime = stopT;
+                [zs, zus, vs, vus, Ft_val, as_val] = this.readSimSignals(simOut);
+            catch ME
+                % fallback to precomputed suspension if provided
+                if ~isempty(this.PrecomputedSuspension) && size(this.PrecomputedSuspension,1) >= idx
+                    zs  = this.PrecomputedSuspension(idx,1);
+                    zus = this.PrecomputedSuspension(idx,2);
+                    vs  = this.PrecomputedSuspension(idx,3);
+                    vus = this.PrecomputedSuspension(idx,4);
+                    Ft_val = this.PrecomputedSuspension(idx,5);
+                    as_val = this.PrecomputedSuspension(idx,6);
+                else
+                    rethrow(ME); % surface useful error if nothing to fallback to
+                end
+            end
+
+            % Derived and normalized quantities
+            deflection = zs - zus;
+            defl_vel = vs - vus;
+            if idx > 1
+                if ~isempty(this.PrecomputedSuspension) && size(this.PrecomputedSuspension,1) >= idx
+                    as_prev = this.PrecomputedSuspension(idx-1,6);
+                else
+                    as_prev = this.State(end) * this.Scale_a;
+                end
+                jerk = (as_val - as_prev) / this.Ts;
+            else
+                jerk = 0;
+            end
+
+            delta_k = action(1) - this.PreviousAction(1);
+            delta_c = action(2) - this.PreviousAction(2);
+
+            na = as_val / this.Scale_a;
+            nj = jerk / this.Scale_j;
+            nF = Ft_val / this.Scale_F;
+            ndx = deflection / this.Scale_dx;
+            ndv = defl_vel / this.Scale_dv;
+            ndk = delta_k / this.Scale_dk;
+            ndc = delta_c / this.Scale_dc;
+
+            sat = 2.0;
+            sat_pen = max(0, abs(ndx) - 1).^2;
+
+            w = this.RewardWeights;
+            if numel(w) ~= 7, error('RewardWeights must have 7 elements'); end
+
+            cost = w(1)*(na)^2 + w(2)*(nj)^2 + w(3)*(nF)^2 + w(4)*(ndv)^2 + w(5)*(ndx)^2 + sat*sat_pen + w(6)*(ndk)^2 + w(7)*(ndc)^2;
+
+            % MAP cost -> reward (double, scalar) and clip
+            if this.scaleR <= 0
+                % protect by ensuring non-zero scaleR
+                localScale = max(1e-3, median(abs(cost)));
+            else
+                localScale = this.scaleR;
+            end
+            reward = 1 - tanh(cost / localScale);
+
+            if abs(ndx) <= 1 && abs(nF) <= 1 && abs(na) <= 1
+                reward = reward + 0.02;
+            end
+            reward = double(max(min(reward, 1), -1));
+            if ~isfinite(reward), reward = -1; end
+
+            this.CurrentEpisodeReward = this.CurrentEpisodeReward + reward;
+
+            % update state & previous action
+            zr = this.safeIndex(this.RadarPreview, idx);
+            this.State = [ zr; zs/this.Scale_dx; zus/this.Scale_dx; vs/this.Scale_dv; vus/this.Scale_dv; Ft_val/this.Scale_F; as_val/this.Scale_a ];
+            this.PreviousAction = action(:);
+
+            % prepare logged signals and episode log (safe indexing)
+            loggedSignals = struct('State', this.State, 'Action', action, 'Cost', cost, 'Reward', reward);
+            logIndex = max(1, min((idx - this.StartIdx + 1), this.MaxSteps));
+            if numel(this.EpisodeLog) < this.MaxSteps
+                this.EpisodeLog = repmat(struct('State', [], 'Action', [], 'Reward', []), this.MaxSteps, 1);
+            end
+            this.EpisodeLog(logIndex) = struct('State', this.State, 'Action', action, 'Reward', reward);
+
+            % increment step and determine isDone (no duplicate push to EpisodeRewardHistory here)
+            this.CurrentStep = this.CurrentStep + 1;
+            isDone = ( (this.CurrentStep - this.StartIdx) > this.MaxSteps ) || ( this.CurrentStep > length(this.RadarPreview) ) || ( (this.CurrentStep * this.Ts) >= this.maxTime );
+
+            obs = this.State;
+        end
+
+        %% readSimSignals - robustly extract final value for named signals
+        %% readSimSignals: extract last sample values from simOut.logsout
+        function [zs, zus, vs, vus, Ft_val, as_val] = readSimSignals(this, simOut)
+        
+            % Initialize outputs
+            zs = 0; 
+            zus = 0; 
+            vs = 0; 
+            vus = 0; 
+            Ft_val = 0; 
+            as_val = 0;
+        
+            try
+                % logs is a Simulink.SimulationData.Dataset
+                logs = simOut.logsout;
+        
+                % Loop over all logged signals
+                for i = 1:numel(this.LoggedSignalNames)
+                    name = this.LoggedSignalNames{i};
+        
+                    try
+                        % Extract signal by name
+                        s = logs.get(name);
+                        data = s.Values.Data;
+        
+                        % Remove the last entry if more than one sample exists
+                        if numel(data) > 1
+                            data = data(1:end-1);
+                        end
+        
+                        % Pick the last valid value (after removing last entry)
+                        lastVal = data(end);
+        
+                    catch
+                        % If signal not found or invalid, default to 0
+                        lastVal = 0;
+                    end
+        
+                    % Assign to corresponding output variable
+                    switch name
+                        case 'zs',  zs     = lastVal;
+                        case 'zus', zus    = lastVal;
+                        case 'vs',  vs     = lastVal;
+                        case 'vus', vus    = lastVal;
+                        case 'Ft',  Ft_val = lastVal;
+                        case 'as',  as_val = lastVal;
+                    end
+                end
+        
+            catch
+                % On error, outputs remain zeros
+            end
+        end
+
+        %% Simple helpers
+        function [kB, cB] = getActionBounds(this)
+            kB = [this.ActionInfo.LowerLimit(1), this.ActionInfo.UpperLimit(1)];
+            cB = [this.ActionInfo.LowerLimit(2), this.ActionInfo.UpperLimit(2)];
+        end
+
+        function s = getState(this), s = this.State; end
+
+        function val = safeIndex(~, v, idx)
+            if isempty(v), val = 0; return; end
+            if idx <= numel(v), val = v(idx); else val = v(end); end
         end
 
         function validLog = getValidEpisodeLog(this)
-            % Returns only the filled portion of the episode log
-            validLog = this.EpisodeLog(1:this.CurrentStep-1);
+            filled = arrayfun(@(x) ~isempty(x.State), this.EpisodeLog);
+            idx = find(filled, 1, 'last');
+            if isempty(idx), validLog = []; else validLog = this.EpisodeLog(1:idx); end
+        end
+
+        function plotEpisode(this)
+            log = this.getValidEpisodeLog();
+            if isempty(log), warning('No episode log'); return; end
+            zs_vals = arrayfun(@(x)x.State(2), log);
+            vs_vals = arrayfun(@(x)x.State(4), log);
+            figure; plot(zs_vals); hold on; plot(vs_vals); legend('zs','vs'); title('Episode'); xlabel('Time Step');
+        end
+
+        function plotRewardCurve(this, window)
+            if nargin < 2, window = 5; end
+            rewards = this.EpisodeRewardHistory;
+            if isempty(rewards), disp('No reward history'); return; end
+            movingAvg = (length(rewards) >= window) * movmean(rewards, window) + (length(rewards) < window) * rewards;
+            figure; plot(rewards,'b-'); hold on; plot(movingAvg,'r-','LineWidth',2); xlabel('Episode'); ylabel('Total Reward'); title('Reward Curve');
         end
     end
 end
-
-

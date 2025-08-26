@@ -2,18 +2,22 @@ clc;
 clear;
 road_classes = {'A','B','C','D'};
 
-num_iterations = 2;  % change as needed
+num_iterations = 200;  % change as needed
 
 % Base folder to save results
 results_base = fullfile(pwd, 'Results');
 if ~exist(results_base, 'dir')
     mkdir(results_base);
 end
+%% 
+%% 
 
 suspension_all = struct();
 radar_all = struct();
 suspension = [];
 radar = [];
+
+
 
 for i = 1:numel(road_classes)
     className = road_classes{i};
@@ -28,50 +32,50 @@ for i = 1:numel(road_classes)
         % Run value constants
         run('value_constants.m');
 
-        out = sim('C:\PRISM-RL\Qaurter_Car_Model\Simulink_Model\new_model_Qaurter_Car.slx', 'ReturnWorkspaceOutputs', 'on');
+        out = sim('C:\Adithya\PRISM-RL\Qaurter_Car_Model\Simulink_Model\new_model_Qaurter_Car.slx', 'ReturnWorkspaceOutputs', 'on');
         run('plot_sim.m');
         Suspension_curr = [out.y_s out.y_u out.y_sdot out.y_udot out.Ft out.y_sddot];
         suspension_all.(className) = [suspension_all.(className); Suspension_curr(1:end-1, :)];
         suspension = [suspension; Suspension_curr(1:end-1, :)];
 
-        radar_curr = simulateRadarPreview("Radar_Data",road_profile_time, road_profile_height);
+        radar_curr = simulateRadarPreview(className,road_profile_time, road_profile_height);
         radar_all.(className) = [radar_all.(className); radar_curr];
         radar = [radar; radar_curr];
 
-        % Create output folder
-        folderName = sprintf('Class%s_Iteration%d', className, iter);
-        outputFolder = fullfile(results_base, folderName);
-        if ~exist(outputFolder, 'dir')
-            mkdir(outputFolder);
-        end
-        % Create subfolders
-        radarFolder = fullfile(outputFolder, 'radar');
-        suspensionFolder = fullfile(outputFolder, 'suspension');
-        if ~exist(radarFolder, 'dir')
-            mkdir(radarFolder);
-        end
-        if ~exist(suspensionFolder, 'dir')
-            mkdir(suspensionFolder);
-        end
-
-        % Get all files with the target extensions
-        fileTypes = {'*.png', '*.mat', '*.xlsx*', '*.csv*'};
-        allFiles = [];
-        for k = 1:numel(fileTypes)
-            allFiles = [allFiles; dir(fileTypes{k})];
-        end
-        
-        % Move and sort files
-        for k = 1:numel(allFiles)
-            fName = allFiles(k).name;
-            sourceFile = fullfile(pwd, fName); % full path of source file
-            
-            if contains(fName, 'radar', 'IgnoreCase', true)
-                movefile(sourceFile, radarFolder);
-            else
-                movefile(sourceFile, suspensionFolder);
-            end
-        end
+        % % Create output folder
+        % folderName = sprintf('Class%s_Iteration%d', className, iter);
+        % outputFolder = fullfile(results_base, folderName);
+        % if ~exist(outputFolder, 'dir')
+        %     mkdir(outputFolder);
+        % end
+        % % Create subfolders
+        % radarFolder = fullfile(outputFolder, 'radar');
+        % suspensionFolder = fullfile(outputFolder, 'suspension');
+        % if ~exist(radarFolder, 'dir')
+        %     mkdir(radarFolder);
+        % end
+        % if ~exist(suspensionFolder, 'dir')
+        %     mkdir(suspensionFolder);
+        % end
+        % 
+        % % Get all files with the target extensions
+        % fileTypes = {'*.png', '*.mat', '*.xlsx*', '*.csv*'};
+        % allFiles = [];
+        % for k = 1:numel(fileTypes)
+        %     allFiles = [allFiles; dir(fileTypes{k})];
+        % end
+        % 
+        % % Move and sort files
+        % for k = 1:numel(allFiles)
+        %     fName = allFiles(k).name;
+        %     sourceFile = fullfile(pwd, fName); % full path of source file
+        % 
+        %     if contains(fName, 'radar', 'IgnoreCase', true)
+        %         movefile(sourceFile, radarFolder);
+        %     else
+        %         movefile(sourceFile, suspensionFolder);
+        %     end
+        % end
         % Clear everything before next run
         clearvars -except road_classes num_iterations results_base className suspension_all radar_all suspension radar
     end
@@ -79,12 +83,14 @@ for i = 1:numel(road_classes)
     sus_curr = suspension_all.(className);
     rad_curr = radar_all.(className);
     filename_sus = "SuspensionData_Class" + className + ".mat";
+    filename_sus = "C:\Adithya\PRISM-RL\Qaurter_Car_Model\samples_test\main_data\" + filename_sus;
     filename_rad = "RadarData_Class" + className + ".mat";
+    filename_rad = "C:\Adithya\PRISM-RL\Qaurter_Car_Model\samples_test\main_data\" + filename_rad;
     save(filename_sus, 'sus_curr');
     save(filename_rad, 'rad_curr');
 end
 
-save("SuspensionData.mat", "suspension");
-save("RadarData.mat", "radar");
+save("C:\Adithya\PRISM-RL\Qaurter_Car_Model\samples_test\main_data\SuspensionData.mat", "suspension");
+save("C:\Adithya\PRISM-RL\Qaurter_Car_Model\samples_test\main_data\RadarData.mat", "radar");
 
 

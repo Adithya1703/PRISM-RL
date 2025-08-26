@@ -1,0 +1,120 @@
+Estimated scaleR: 0.0568541
+Episode 1 start: class=A, startIdx=1, SimTime=0.010
+Episode 2 start: class=C, startIdx=1, SimTime=0.010
+Episode 3 start: class=A, startIdx=1, SimTime=0.010
+{Error using <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.internal.train.OffPolicyTrainer/run_internal_/nestedRunEpisode', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m', 304)" style="font-weight:bold">rl.internal.train.OffPolicyTrainer/run_internal_/nestedRunEpisode</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m',304,0)">line 304</a>)
+There was an error executing the environment's step method.
+
+Caused by:
+	Error using <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('PredictiveSuspensionEnv/step', 'C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\PredictiveSuspensionEnv.m', 234)" style="font-weight:bold">PredictiveSuspensionEnv/step</a> (<a href="matlab: opentoline('C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\PredictiveSuspensionEnv.m',234,0)">line 234</a>)
+	Cannot create variable 'zus' in workspace
+
+	Error in
+    <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('createEnvironment>@(action,loggedSignals)step(envObj,action)', 'C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\createEnvironment.m', 52)" style="font-weight:bold">createEnvironment>@(action,loggedSignals)step(envObj,action)</a>
+    (<a href="matlab: opentoline('C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\createEnvironment.m',52,0)">line 52</a>)
+	    StepHandle = @(action, loggedSignals) step(envObj, action);
+	    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.env.rlFunctionEnv/step', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\rlFunctionEnv.m', 93)" style="font-weight:bold">rl.env.rlFunctionEnv/step</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\rlFunctionEnv.m',93,0)">line 93</a>)
+	            [Observation, Reward, IsDone, Info] =
+                feval(this.StepFcn,Action,this.Info);
+	            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.env.MATLABEnvironment>@(a)step(env,a)', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\MATLABEnvironment.m', 91)" style="font-weight:bold">rl.env.MATLABEnvironment>@(a)step(env,a)</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\MATLABEnvironment.m',91,0)">line 91</a>)
+	                stepfcn = @(a) step(env,a);
+	                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.env.internal.MATLABFunctionHandleSimulator/step_', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABFunctionHandleSimulator.m', 22)" style="font-weight:bold">rl.env.internal.MATLABFunctionHandleSimulator/step_</a>
+    (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABFunctionHandleSimulator.m',22,0)">line 22</a>)
+	            [next_observation,reward,isdone] =
+                feval(this.StepFcn_,action);
+	            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.env.internal.MATLABSimulator/step', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABSimulator.m', 15)" style="font-weight:bold">rl.env.internal.MATLABSimulator/step</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABSimulator.m',15,0)">line 15</a>)
+	            [next_observation,reward,isdone] =
+                step_(this,action);
+	            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.env.internal.MATLABSimulator/simInternal_', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABSimulator.m', 112)" style="font-weight:bold">rl.env.internal.MATLABSimulator/simInternal_</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABSimulator.m',112,0)">line
+    112</a>)
+	                        [nobs,rwd,isd] = step(this,act);
+	                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.env.internal.MATLABSimulator/sim_', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABSimulator.m', 67)" style="font-weight:bold">rl.env.internal.MATLABSimulator/sim_</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABSimulator.m',67,0)">line 67</a>)
+	                out = simInternal_(this,simPkg);
+	                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.env.internal.AbstractSimulator/sim', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\AbstractSimulator.m', 30)" style="font-weight:bold">rl.env.internal.AbstractSimulator/sim</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\AbstractSimulator.m',30,0)">line 30</a>)
+	            out =
+                sim_(this,simData,policy,processExpFcn,processExpData);
+	            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.env.AbstractEnv/runEpisode', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\@AbstractEnv\runEpisode.m', 144)" style="font-weight:bold">rl.env.AbstractEnv/runEpisode</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\@AbstractEnv\runEpisode.m',144,0)">line 144</a>)
+	    out =
+        sim(simulator,simData,policy,processExpFcn,processExpData);
+	    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in
+    <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.internal.train.OffPolicyTrainer/run_internal_/nestedRunEpisode', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m', 304)" style="font-weight:bold">rl.internal.train.OffPolicyTrainer/run_internal_/nestedRunEpisode</a>
+    (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m',304,0)">line 304</a>)
+	                out_or_F = runEpisode(env,p,...
+	                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.internal.train.OffPolicyTrainer/run_internal_', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m', 371)" style="font-weight:bold">rl.internal.train.OffPolicyTrainer/run_internal_</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m',371,0)">line
+    371</a>)
+	                            out = nestedRunEpisode(policy);
+	                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.internal.train.OffPolicyTrainer/run_', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m', 39)" style="font-weight:bold">rl.internal.train.OffPolicyTrainer/run_</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m',39,0)">line 39</a>)
+	            result = run_internal_(this);
+	            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.internal.train.Trainer/run', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\Trainer.m', 8)" style="font-weight:bold">rl.internal.train.Trainer/run</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\Trainer.m',8,0)">line 8</a>)
+	            result = run_(this);
+	            ^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.internal.trainmgr.OnlineTrainingManager/run_', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+trainmgr\OnlineTrainingManager.m', 135)" style="font-weight:bold">rl.internal.trainmgr.OnlineTrainingManager/run_</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+trainmgr\OnlineTrainingManager.m',135,0)">line
+    135</a>)
+	            trainResult = run(trainer);
+	            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.internal.trainmgr.TrainingManager/run', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+trainmgr\TrainingManager.m', 4)" style="font-weight:bold">rl.internal.trainmgr.TrainingManager/run</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+trainmgr\TrainingManager.m',4,0)">line 4</a>)
+	            result = run_(this);
+	            ^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.agent.AbstractAgent/train', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+agent\@AbstractAgent\train.m', 86)" style="font-weight:bold">rl.agent.AbstractAgent/train</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+agent\@AbstractAgent\train.m',86,0)">line 86</a>)
+	    trainingResult = run(tm);
+	    ^^^^^^^^^^^^^^^^^^^^^^^^^
+	Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('runTraining', 'C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\runTraining.m', 117)" style="font-weight:bold">runTraining</a> (<a href="matlab: opentoline('C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\runTraining.m',117,0)">line 117</a>)
+	trainingStats = train(agent, env, trainOpts);
+	^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ - <a href="matlab:interactive_actions_helper.displayMStack([struct('file','C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\PredictiveSuspensionEnv.m','line',234,'name','PredictiveSuspensionEnv>PredictiveSuspensionEnv.step'),struct('file','C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\createEnvironment.m','line',52,'name','createEnvironment>@(action,loggedSignals)step(envObj,action)'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\rlFunctionEnv.m','line',93,'name','rl.env.rlFunctionEnv>rlFunctionEnv.step'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\MATLABEnvironment.m','line',91,'name','rl.env.MATLABEnvironment>@(a)step(env,a)'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABFunctionHandleSimulator.m','line',22,'name','rl.env.internal.MATLABFunctionHandleSimulator>MATLABFunctionHandleSimulator.step_'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABSimulator.m','line',15,'name','rl.env.internal.MATLABSimulator>MATLABSimulator.step'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABSimulator.m','line',112,'name','rl.env.internal.MATLABSimulator>MATLABSimulator.simInternal_'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABSimulator.m','line',67,'name','rl.env.internal.MATLABSimulator>MATLABSimulator.sim_'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\AbstractSimulator.m','line',30,'name','rl.env.internal.AbstractSimulator>AbstractSimulator.sim'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\@AbstractEnv\runEpisode.m','line',144,'name','rl.env.AbstractEnv.runEpisode'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m','line',304,'name','rl.internal.train.OffPolicyTrainer>OffPolicyTrainer.run_internal_/nestedRunEpisode'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m','line',371,'name','rl.internal.train.OffPolicyTrainer>OffPolicyTrainer.run_internal_'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m','line',39,'name','rl.internal.train.OffPolicyTrainer>OffPolicyTrainer.run_'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\Trainer.m','line',8,'name','rl.internal.train.Trainer>Trainer.run'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+trainmgr\OnlineTrainingManager.m','line',135,'name','rl.internal.trainmgr.OnlineTrainingManager>OnlineTrainingManager.run_'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+trainmgr\TrainingManager.m','line',4,'name','rl.internal.trainmgr.TrainingManager>TrainingManager.run'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+agent\@AbstractAgent\train.m','line',86,'name','rl.agent.AbstractAgent.train'),struct('file','C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\runTraining.m','line',117,'name','runTraining')]);">Show complete
+    stack trace</a>
+	Caused by:
+	    Error using Simulink.Simulation.internal.DesktopSimHelper
+	    Program interruption (Ctrl-C) has been detected. - <a href="matlab:interactive_actions_helper.displayMStack([struct('file','C:\Program Files\MATLAB\R2025a\toolbox\simulink\simulationinput_desktop\+Simulink\+Simulation\+internal\DesktopSimHelper.p','line',0,'name','Simulink.Simulation.internal.DesktopSimHelper'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\simulink\simulationinput_desktop\+Simulink\+Simulation\+internal\DesktopSimHelper.p','line',0,'name','Simulink.Simulation.internal.DesktopSimHelper>DesktopSimHelper.sim'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\simulink\simulationinput\+Simulink\SimulationInput.p','line',0,'name','Simulink.SimulationInput>SimulationInput.sim'),struct('file','C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\PredictiveSuspensionEnv.m','line',234,'name','PredictiveSuspensionEnv>PredictiveSuspensionEnv.step'),struct('file','C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\createEnvironment.m','line',52,'name','createEnvironment>@(action,loggedSignals)step(envObj,action)'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\rlFunctionEnv.m','line',93,'name','rl.env.rlFunctionEnv>rlFunctionEnv.step'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\MATLABEnvironment.m','line',91,'name','rl.env.MATLABEnvironment>@(a)step(env,a)'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABFunctionHandleSimulator.m','line',22,'name','rl.env.internal.MATLABFunctionHandleSimulator>MATLABFunctionHandleSimulator.step_'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABSimulator.m','line',15,'name','rl.env.internal.MATLABSimulator>MATLABSimulator.step'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABSimulator.m','line',112,'name','rl.env.internal.MATLABSimulator>MATLABSimulator.simInternal_'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\MATLABSimulator.m','line',67,'name','rl.env.internal.MATLABSimulator>MATLABSimulator.sim_'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\+internal\AbstractSimulator.m','line',30,'name','rl.env.internal.AbstractSimulator>AbstractSimulator.sim'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+env\@AbstractEnv\runEpisode.m','line',144,'name','rl.env.AbstractEnv.runEpisode'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m','line',304,'name','rl.internal.train.OffPolicyTrainer>OffPolicyTrainer.run_internal_/nestedRunEpisode'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m','line',371,'name','rl.internal.train.OffPolicyTrainer>OffPolicyTrainer.run_internal_'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m','line',39,'name','rl.internal.train.OffPolicyTrainer>OffPolicyTrainer.run_'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\Trainer.m','line',8,'name','rl.internal.train.Trainer>Trainer.run'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+trainmgr\OnlineTrainingManager.m','line',135,'name','rl.internal.trainmgr.OnlineTrainingManager>OnlineTrainingManager.run_'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+trainmgr\TrainingManager.m','line',4,'name','rl.internal.trainmgr.TrainingManager>TrainingManager.run'),struct('file','C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+agent\@AbstractAgent\train.m','line',86,'name','rl.agent.AbstractAgent.train'),struct('file','C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\runTraining.m','line',117,'name','runTraining')]);">Show
+        complete stack trace</a>
+
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.internal.train.OffPolicyTrainer/run_internal_', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m', 371)" style="font-weight:bold">rl.internal.train.OffPolicyTrainer/run_internal_</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m',371,0)">line 371</a>)
+                            out = nestedRunEpisode(policy);
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.internal.train.OffPolicyTrainer/run_', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m', 39)" style="font-weight:bold">rl.internal.train.OffPolicyTrainer/run_</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\OffPolicyTrainer.m',39,0)">line 39</a>)
+            result = run_internal_(this);
+                     ^^^^^^^^^^^^^^^^^^^
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.internal.train.Trainer/run', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\Trainer.m', 8)" style="font-weight:bold">rl.internal.train.Trainer/run</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+train\Trainer.m',8,0)">line 8</a>)
+            result = run_(this);
+                     ^^^^^^^^^^
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.internal.trainmgr.OnlineTrainingManager/run_', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+trainmgr\OnlineTrainingManager.m', 135)" style="font-weight:bold">rl.internal.trainmgr.OnlineTrainingManager/run_</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+trainmgr\OnlineTrainingManager.m',135,0)">line 135</a>)
+            trainResult = run(trainer);
+                          ^^^^^^^^^^^^
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.internal.trainmgr.TrainingManager/run', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+trainmgr\TrainingManager.m', 4)" style="font-weight:bold">rl.internal.trainmgr.TrainingManager/run</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+internal\+trainmgr\TrainingManager.m',4,0)">line 4</a>)
+            result = run_(this);
+                     ^^^^^^^^^^
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('rl.agent.AbstractAgent/train', 'C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+agent\@AbstractAgent\train.m', 86)" style="font-weight:bold">rl.agent.AbstractAgent/train</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2025a\toolbox\rl\rl\+rl\+agent\@AbstractAgent\train.m',86,0)">line 86</a>)
+    trainingResult = run(tm);
+                     ^^^^^^^
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('runTraining', 'C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\runTraining.m', 117)" style="font-weight:bold">runTraining</a> (<a href="matlab: opentoline('C:\Adithya\PRISM-RL\Qaurter_Car_Model\Workspace\runTraining.m',117,0)">line 117</a>)
+trainingStats = train(agent, env, trainOpts);
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+} 
+[Warning: Attempting to automatically delete runs due to low
+available disk space or excessive disk usage.
+Suggested Actions:
+    • Turn off automatic run deletion - <a href="matlab:Simulink.sdi.setDeleteRunsOnLowSpace(false);">Fix</a>
+    • Open Simulation Data Inspector preferences and change Storage
+    options
+] 
+[Warning: Attempting to automatically delete runs due to low available disk space or excessive disk usage.
+Suggested Actions:
+    • Turn off automatic run deletion - <a href="matlab:Simulink.sdi.setDeleteRunsOnLowSpace(false);">Fix</a>
+    • Open Simulation Data Inspector preferences and change Storage options
+] 
+[Warning: Attempting to automatically delete runs due to low available disk space or excessive disk usage.
+Suggested Actions:
+    • Turn off automatic run deletion - <a href="matlab:Simulink.sdi.setDeleteRunsOnLowSpace(false);">Fix</a>
+    • Open Simulation Data Inspector preferences and change Storage options
+] 
