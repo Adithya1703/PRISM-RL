@@ -39,10 +39,6 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
         % Reward weighting
         RewardWeights = [0.40, 0.15, 0.15, 0.08, 0.12, 0.03, 0.02];
 
-        % Internal flags / diagnostics
-        SimulinkAvailable = false;   % set true if model loaded successfully
-        UseBaseWorkspace = false;    % set true only if you must use assignin('base',...)
-
         % Scaling / normalization
         Scale_a = 15;
         Scale_j = 1500;
@@ -76,6 +72,8 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
         RoadTime = [];
         RoadHeight = [];
         SimTime = 0;          % monotonic stop time used to advance sim
+        SimulinkAvailable = false;
+        UseBaseWorkspace = false; % we prefer SimulationInput but keep base fallback
     end
 
     methods
@@ -83,7 +81,10 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
         function this = PredictiveSuspensionEnv(varargin)
             obsInfo = rlNumericSpec([7 1], 'LowerLimit', -inf*ones(7,1), 'UpperLimit', inf*ones(7,1));
             obsInfo.Name = 'states';
-            actInfo = rlNumericSpec([2 1], 'LowerLimit', [10000;500], 'UpperLimit', [30000;3500]);
+            % Action limits: keep these consistent with actor scaling in runTraining.m
+            actLB = [12000; 900];
+            actUB = [35000; 5000];
+            actInfo = rlNumericSpec([2 1], 'LowerLimit', actLB, 'UpperLimit', actUB);
             actInfo.Name = 'actions';
             this = this@rl.env.MATLABEnvironment(obsInfo, actInfo);
 
@@ -94,15 +95,7 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
                 if numel(varargin{3}) ~= 7, error('RewardWeights must be length 7'); end
                 this.RewardWeights = varargin{3}(:).';
             end
-
-            % Ensure scalar parameters exist in base only if forced by UseBaseWorkspace
-            try
-                if this.UseBaseWorkspace
-                    this.ensureWorkspaceParameters();
-                end
-            catch
-                warning('ensureWorkspaceParameters failed during construction (non-fatal).');
-            end
+            this.ensureWorkspaceParameters();
 
             % Preallocate episode log
             this.EpisodeLog = repmat(struct('State', [], 'Action', [], 'Reward', []), this.MaxSteps, 1);
@@ -112,11 +105,12 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
                 load_system(this.ModelName);
                 % Turn FastRestart on if supported
                 try
-                    set_param(this.ModelName, 'FastRestart', 'on');
+                    set_param(this.ModelName, 'FastRestart', 'off');
                 catch
                     % older versions may not support; ignore
                 end
                 this.SimulinkAvailable = true;
+                this.UseBaseWorkspace = true;
                 % Optionally validate that logged signal names exist by running a very short sim
                 try
                     this.validateLoggedSignals(); % non-fatal
@@ -126,33 +120,38 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
             catch ME
                 warning('Could not load model "%s": %s', this.ModelName, getReport(ME,'basic'));
                 this.SimulinkAvailable = false;
+                this.UseBaseWorkspace = false;
             end
         end
 
         %% Reset - start new episode
         function initialObs = reset(this)
             % Append previous episode reward
-            if this.CurrentEpisode>0
+            this.CurrentEpisode = this.CurrentEpisode + 1;
+            if ~isempty(this.CurrentEpisodeReward)
                 this.EpisodeRewardHistory(end+1) = this.CurrentEpisodeReward;
             end
-            this.CurrentEpisode = this.CurrentEpisode + 1;
             this.CurrentEpisodeReward = 0;
         
             % Reset step
             this.CurrentStep = 1;
             this.StartIdx = 1;
+            this.SimTime = 0;
+
+            % Initialize actuators            
+            this.k = 18000 + 4000*rand;
+            this.c = 2000 + 1000*rand;
+            this.PreviousAction = [this.k; this.c];
         
             % Randomize road & radar
             rc = this.RoadClasses{ randi(numel(this.RoadClasses)) };
             [rt, rh] = generate_iso8608_profile(rc, this.RoadSpeed, this.RoadDuration, round(this.RoadFs));
-            this.RoadTime = rt(:);
-            this.RoadHeight = rh(:);
+            this.RoadTime = rt(:)';
+            this.RoadHeight = rh(:)';
             this.RadarPreview = simulateRadarPreview(rc, this.RoadTime, this.RoadHeight);
-        
-            % Initialize actuators
-            this.k = 18000 + 4000*rand;
-            this.c = 2000 + 1000*rand;
-            this.PreviousAction = [this.k; this.c];
+            nT = length(this.RadarPreview);
+
+            this.ensureWorkspaceParameters();
         
             % Push to base workspace if needed
             if this.UseBaseWorkspace
@@ -174,23 +173,91 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
                     simIn = setVariable(simIn, this.CVarName, this.c);
                     simIn = setVariable(simIn, this.RoadTimeVar, this.RoadTime);
                     simIn = setVariable(simIn, this.RoadHeightVar, this.RoadHeight);
+                    % also ensure scalar params visible to model run
+                    simIn = setVariable(simIn, 'msm_sms', this.msm_sms);
+                    simIn = setVariable(simIn, 'mum_umu', this.mum_umu);
+                    simIn = setVariable(simIn, 'kt', this.kt);
+                    simIn = setVariable(simIn, 'ct', this.ct);
+                    
+                    %% --- Debug instrumentation (insert into reset() around sim call) ---
+                    % Print sizes of variables you pass to the model
+                    % varsToCheck = { this.KVarName, this.CVarName, this.RoadTimeVar, this.RoadHeightVar };
+                    % fprintf('--- Pre-sim variables in MATLAB workspace ---\n');
+                    % for i=1:numel(varsToCheck)
+                    %     nm = varsToCheck{i};
+                    %     try
+                    %         v = evalin('base', nm);
+                    %         fprintf('%s : size=%s class=%s\n', nm, mat2str(size(v)), class(v));
+                    %     catch
+                    %         fprintf('%s : <not in base workspace>\n', nm);
+                    %     end
+                    % end
+                    % fprintf('this.RadarPreview size: %s\n', mat2str(size(this.RadarPreview)));
+                    % fprintf('this.PrecomputedSuspension size: %s\n', mat2str(size(this.PrecomputedSuspension)));
+                    
+                    % Run sim and capture simOut
                     simOut = sim(simIn);
+                    
+                    % Inspect simOut top-level contents
+                    % fprintf('--- simOut top-level properties ---\n');
+                    % props = properties(simOut);
+                    % for i=1:numel(props), fprintf('%s\n', props{i}); end
+                    % 
+                    % % If logsout exists, inspect each element's data shape
+                    % if isprop(simOut,'logsout') && ~isempty(simOut.logsout)
+                    %     ds = simOut.logsout;
+                    %     fprintf('logsout: class=%s\n', class(ds));
+                    %     % Attempt to get number of elements robustly
+                    %     try nElements = ds.numElements; catch; nElements = ds.getNumElements(); end
+                    %     for j = 1:nElements
+                    %         try
+                    %             entry = ds.get(j); % get by index
+                    %             name = entry.Name;
+                    %             if isprop(entry,'Values')
+                    %                 try
+                    %                     data = entry.Values.Data;
+                    %                     fprintf('Signal "%s": Data size = %s, class=%s\n', name, mat2str(size(data)), class(data));
+                    %                 catch ME
+                    %                     fprintf('Signal "%s": couldn''t read Values.Data: %s\n', name, ME.message);
+                    %                 end
+                    %             else
+                    %                 fprintf('Signal "%s": no Values property, class=%s\n', name, class(entry));
+                    %             end
+                    %         catch ME
+                    %             fprintf('Could not get logsout element %d: %s\n', j, ME.message);
+                    %         end
+                    %     end
+                    % else
+                    %     fprintf('simOut has no logsout or logsout empty.\n');
+                    % end
+                    % simOut = sim(simIn);
         
                     % Extract all signals
                     [zs, zus, vs, vus, Ft_val, as_val] = readSimSignals(this, simOut);
-                    % Store in a matrix: [zs, zus, vs, vus, Ft_val, as_val]
+
+                    % Store as Nx6 matrix
                     this.PrecomputedSuspension = [zs(:), zus(:), vs(:), vus(:), Ft_val(:), as_val(:)];
-                catch
+                catch ME
                     % Fallback to zeros if simulation fails
-                    n = length(this.RadarPreview);
-                    this.PrecomputedSuspension = zeros(n,6);
+                    warning('Pre-sim in reset failed; falling back to zeros: %s', getReport(ME,'basic'));
+                    this.PrecomputedSuspension = zeros(nT,6);
+                end
+            else
+                % if no Simulink available, fallback to zeros or existing SuspensionData if provided
+                if ~isempty(this.SuspensionData)
+                    L = min(size(this.SuspensionData,1), nT);
+                    tmp = zeros(nT,6);
+                    tmp(1:L,:) = this.SuspensionData(1:L,1:6);
+                    this.PrecomputedSuspension = tmp;
+                else
+                    this.PrecomputedSuspension = zeros(nT,6);
                 end
             end
         
-            % Initial observation
-            zr = this.safeIndex(this.RadarPreview,1);
-            initialObs = [zr; zeros(6,1)];   % 6 scaled states all zeros
-            this.State = initialObs;
+            % Initial observation (radar raw, rest normalized)
+            zr0 = this.safeIndex(this.RadarPreview, 1);
+            this.State = [ zr0; zeros(6,1) ];
+            initialObs = this.State;
         end
 
 
@@ -207,9 +274,9 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
         %% Step Function - will not run simulink model
         function [obs, reward, isDone, loggedSignals] = step(this, action)
             % Clip action
-            action = min(max(action, this.ActionInfo.LowerLimit), this.ActionInfo.UpperLimit);
-            action = action(:);
-        
+            rawAction = action(:);
+            action = min(max(rawAction, this.ActionInfo.LowerLimit), this.ActionInfo.UpperLimit);
+
             % Update actuator variables
             this.k = action(1); this.c = action(2);
         
@@ -217,6 +284,7 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
             if this.UseBaseWorkspace
                 assignin('base', this.KVarName, this.k);
                 assignin('base', this.CVarName, this.c);
+                this.ensureWorkspaceParameters();
             end
         
             idx = this.CurrentStep;
@@ -239,8 +307,40 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
                 Ft_val = this.PrecomputedSuspension(idx,5);
                 as_val = this.PrecomputedSuspension(idx,6);
             else
-                % fallback to zeros if no precomputed data
-                zs = 0; zus = 0; vs = 0; vus = 0; Ft_val = 0; as_val = 0;
+                % As last resort attempt a one-step sim run (rare)
+                if this.SimulinkAvailable
+                    try
+                        stopT = this.SimTime + this.Ts;
+                        simIn = Simulink.SimulationInput(this.ModelName);
+                        simIn = setModelParameter(simIn, 'StopTime', num2str(stopT));
+                        simIn = setVariable(simIn, this.KVarName, this.k);
+                        simIn = setVariable(simIn, this.CVarName, this.c);
+                        simIn = setVariable(simIn, this.RoadTimeVar, this.RoadTime);
+                        simIn = setVariable(simIn, this.RoadHeightVar, this.RoadHeight);
+                        simIn = setVariable(simIn, 'msm_sms', this.msm_sms);
+                        simIn = setVariable(simIn, 'mum_umu', this.mum_umu);
+                        simIn = setVariable(simIn, 'kt', this.kt);
+                        simIn = setVariable(simIn, 'ct', this.ct);
+
+                        simOut = sim(simIn);
+                        this.SimTime = stopT;
+                        [zs, zus, vs, vus, Ft_val, as_val] = this.readSimSignals(simOut);
+
+                        % ensure scalars
+                        zs = double(scalarize(zs));
+                        zus = double(scalarize(zus));
+                        vs = double(scalarize(vs));
+                        vus = double(scalarize(vus));
+                        Ft_val = double(scalarize(Ft_val));
+                        as_val = double(scalarize(as_val));
+                    catch ME
+                        % fallback to zeros
+                        zs = 0; zus = 0; vs = 0; vus = 0; Ft_val = 0; as_val = 0;
+                    end
+                else
+                    % No model available -> zeros
+                    zs = 0; zus = 0; vs = 0; vus = 0; Ft_val = 0; as_val = 0;
+                end
             end
         
             % Derived quantities
@@ -263,11 +363,12 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
             ndv = defl_vel / this.Scale_dv;
             ndk = delta_k / this.Scale_dk;
             ndc = delta_c / this.Scale_dc;
+            sat = 2.0;
+            sat_pen = max(0, abs(ndx)-1).^2;
         
             % Compute reward
             w = this.RewardWeights;
-            sat = 2.0;
-            sat_pen = max(0, abs(ndx)-1).^2;
+            
             cost = w(1)*na^2 + w(2)*nj^2 + w(3)*nF^2 + w(4)*ndv^2 + w(5)*ndx^2 + sat*sat_pen + w(6)*ndk^2 + w(7)*ndc^2;
             localScale = max(eps, this.scaleR);
             reward = 1 - tanh(cost/localScale);
@@ -281,7 +382,7 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
             % Update state
             zr = this.safeIndex(this.RadarPreview, idx);
             this.State = [zr; zs/this.Scale_dx; zus/this.Scale_dx; vs/this.Scale_dv; vus/this.Scale_dv; Ft_val/this.Scale_F; as_val/this.Scale_a];
-            this.PreviousAction = action;
+            this.PreviousAction = action(:);
         
             % Logged signals
             loggedSignals = struct('State', this.State, 'Action', action, 'Cost', cost, 'Reward', reward);
@@ -292,8 +393,8 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
         
             % Increment step and determine isDone
             this.CurrentStep = this.CurrentStep + 1;
-            isDone = (this.CurrentStep - this.StartIdx) > this.MaxSteps || this.CurrentStep > length(this.RadarPreview) || (this.CurrentStep*this.Ts) >= this.maxTime;
-        
+            isDone = ((this.CurrentStep - this.StartIdx) > this.MaxSteps) || (this.CurrentStep > length(this.RadarPreview)) || ((this.CurrentStep*this.Ts) >= this.maxTime);
+
             % Append episode reward at termination
             if isDone
                 this.EpisodeRewardHistory(end+1) = this.CurrentEpisodeReward;
@@ -317,7 +418,7 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
         
             try
                 % logs is a Simulink.SimulationData.Dataset
-                logs = simOut.logsout;
+                logs = simOut;
         
                 % Loop over all logged signals
                 for i = 1:numel(this.LoggedSignalNames)
@@ -325,8 +426,7 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
         
                     try
                         % Extract signal by name
-                        s = logs.get(name);
-                        data = s.Values.Data;
+                        data = logs.get(name);
         
                         % Remove the last entry if more than one sample exists
                         if numel(data) > length(this.RadarPreview)
@@ -334,7 +434,7 @@ classdef PredictiveSuspensionEnv < rl.env.MATLABEnvironment
                         end
         
                         % Pick the last valid value (after removing last entry)
-                        lastVal = data(end);
+                        lastVal = data;
         
                     catch
                         % If signal not found or invalid, default to 0

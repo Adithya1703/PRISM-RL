@@ -116,4 +116,5 @@ trainOpts = rlTrainingOptions( ...
 if ~exist('agents','dir'), mkdir('agents'); end
 trainingStats = train(agent, env, trainOpts);
 save("Agent.mat", "agent")
+save current_data.mat
 diary off;
